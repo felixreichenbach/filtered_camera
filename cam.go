@@ -16,7 +16,6 @@ import (
 	"go.viam.com/rdk/resource"
 	"go.viam.com/rdk/rimage/transform"
 	"go.viam.com/rdk/services/vision"
-	"go.viam.com/rdk/vision/classification"
 	"go.viam.com/rdk/vision/objectdetection"
 
 	"github.com/viamrobotics/gostream"
@@ -31,9 +30,11 @@ type Config struct {
 	WindowSeconds int `json:"window_seconds"`
 
 	Classifications map[string]float64
+	Detections      map[string]float64
 	Objects         map[string]float64
 }
 
+/*
 func (cfg *Config) keepClassifications(cs []classification.Classification) bool {
 	for _, c := range cs {
 		if cfg.keepClassification(c) {
@@ -51,6 +52,30 @@ func (cfg *Config) keepClassification(c classification.Classification) bool {
 
 	min, has = cfg.Classifications["*"]
 	if has && c.Score() > min {
+		return true
+	}
+
+	return false
+}
+*/
+
+func (cfg *Config) keepDetections(ds []objectdetection.Detection) bool {
+	for _, d := range ds {
+		if cfg.keepDetection(d) {
+			return true
+		}
+	}
+	return false
+}
+
+func (cfg *Config) keepDetection(d objectdetection.Detection) bool {
+	min, has := cfg.Detections[d.Label()]
+	if has && d.Score() > min {
+		return true
+	}
+
+	min, has = cfg.Detections["*"]
+	if has && d.Score() > min {
 		return true
 	}
 
@@ -274,14 +299,14 @@ func (fc *filteredCamera) markShouldSend() {
 
 func (fc *filteredCamera) shouldSend(ctx context.Context, img image.Image) (bool, error) {
 
-	if len(fc.conf.Classifications) > 0 {
-		res, err := fc.vis.Classifications(ctx, img, 100, nil)
+	if len(fc.conf.Detections) > 0 {
+		res, err := fc.vis.Detections(ctx, img, nil)
 		if err != nil {
 			return false, err
 		}
 
-		if fc.conf.keepClassifications(res) {
-			fc.logger.Infof("keeping image with classifications %v", res)
+		if fc.conf.keepDetections(res) {
+			fc.logger.Infof("keeping image with detections %v", res)
 			fc.markShouldSend()
 			return true, nil
 		}
